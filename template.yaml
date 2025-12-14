@@ -1,0 +1,60 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Manufacturing Text Assistant (Cohere Command R on Bedrock) - API Gateway + Lambda
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 512
+    Tracing: Active
+    LoggingConfig:
+      LogFormat: JSON
+    Environment:
+      Variables:
+        BEDROCK_REGION: us-west-2
+        MODEL_ID: cohere.command-r-v1:0
+
+Resources:
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      Cors:
+        AllowMethods: "'POST,OPTIONS'"
+        AllowHeaders: "'Content-Type'"
+        AllowOrigin: "'*'"
+
+  ManufacturingAssistantFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: app.lambda_handler
+      # Keep function-specific vars here only if you want overrides
+      Events:
+        Ask:
+          Type: Api
+          Properties:
+            RestApiId: !Ref Api
+            Path: /assist
+            Method: POST
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource:
+                - !Sub "arn:aws:bedrock:${AWS::Region}::foundation-model/cohere.command-r-v1:0"
+
+Outputs:
+  ApiUrl:
+    Description: POST endpoint for the manufacturing assistant
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/prod/assist"
+
+  ModelId:
+    Description: Bedrock model configured for this stack
+    Value: cohere.command-r-v1:0
+
+  Region:
+    Description: AWS region deployed to
+    Value: !Ref AWS::Region
